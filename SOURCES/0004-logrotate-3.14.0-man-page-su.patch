@@ -1,0 +1,37 @@
+From 893ab396daffebfe5bb97e9fcf0adbd7fda1b828 Mon Sep 17 00:00:00 2001
+From: Kamil Dudka <kdudka@redhat.com>
+Date: Fri, 18 Jan 2019 16:10:56 +0100
+Subject: [PATCH] logrotate.8: encourage admins to use the `su` directive
+
+... to rotate files in directories that are directly or indirectly in
+control of non-privileged users.  Originally reported in the following
+pull request:
+
+https://github.com/logrotate/logrotate/pull/235
+
+Closes #236
+
+Upstream-commit: 3e170c0609a18e0bb5fd7f647cb877221d576456
+Signed-off-by: Kamil Dudka <kdudka@redhat.com>
+---
+ logrotate.8.in | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/logrotate.8.in b/logrotate.8.in
+index 56c4a32..ee26821 100644
+--- a/logrotate.8.in
++++ b/logrotate.8.in
+@@ -575,7 +575,9 @@ user/group (usually root). \fIuser\fR specifies the user name used for
+ rotation and \fIgroup\fR specifies the group used for rotation. If the
+ user/group you specify here does not have sufficient privilege to make 
+ files with the ownership you've specified in a \fIcreate\fR instruction, 
+-it will cause an error.
++it will cause an error.  If logrotate runs with root privileges, it is
++recommended to use the \fBsu\fR directive to rotate files in directories
++that are directly or indirectly in control of non-privileged users.
+ 
+ .TP
+ \fBtabooext\fR [+] \fIlist\fR
+-- 
+2.21.3
+

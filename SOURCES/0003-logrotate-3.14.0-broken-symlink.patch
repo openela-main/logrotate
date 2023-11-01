@@ -1,0 +1,89 @@
+From b98dd1933b1ebf5c86041bf135af421fe1ce4fc9 Mon Sep 17 00:00:00 2001
+From: Kamil Dudka <kdudka@redhat.com>
+Date: Fri, 28 Jun 2019 18:22:39 +0200
+Subject: [PATCH] globerr: do not abort globbing on broken symlink
+
+Fixes #251
+
+Upstream-commit: 4297f01103915f4ee356d37bdb35e8c41bbbdb28
+Signed-off-by: Kamil Dudka <kdudka@redhat.com>
+---
+ config.c               | 16 +++++++++++++---
+ test/Makefile.am       |  1 +
+ test/test-0084.sh      | 14 ++++++++++++++
+ test/test-config.84.in |  3 +++
+ 4 files changed, 31 insertions(+), 3 deletions(-)
+ create mode 100755 test/test-0084.sh
+ create mode 100644 test/test-config.84.in
+
+diff --git a/config.c b/config.c
+index e4807c9..1805a16 100644
+--- a/config.c
++++ b/config.c
+@@ -834,9 +834,19 @@ static int globerr(const char *pathname, int theerr)
+ {
+     (void) pathname;
+ 
+-    /* A missing directory is not an error, so return 0 */
+-    if (theerr == ENOTDIR)
+-        return 0;
++    /* prevent glob() from being aborted in certain cases */
++    switch (theerr) {
++        case ENOTDIR:
++            /* non-directory where directory was expected by the glob */
++            return 0;
++
++        case ENOENT:
++            /* most likely symlink with non-existent target */
++            return 0;
++
++        default:
++            break;
++    }
+ 
+     glob_errno = theerr;
+ 
+diff --git a/test/Makefile.am b/test/Makefile.am
+index 5e838d1..35ba2b9 100644
+--- a/test/Makefile.am
++++ b/test/Makefile.am
+@@ -76,6 +76,7 @@ TEST_CASES = \
+ 	test-0075.sh \
+ 	test-0076.sh \
+ 	test-0077.sh \
++	test-0084.sh \
+ 	test-0100.sh \
+ 	test-0101.sh
+ 
+diff --git a/test/test-0084.sh b/test/test-0084.sh
+new file mode 100755
+index 0000000..1389331
+--- /dev/null
++++ b/test/test-0084.sh
+@@ -0,0 +1,14 @@
++#!/bin/bash
++
++. ./test-common.sh
++
++cleanup 84
++
++# ------------------------------- Test 84 ------------------------------------
++preptest test.log 84 1
++
++mkdir -p log/dir
++ln -s XXX log/sym
++touch log/dir/file
++
++$RLR test-config.84 -v --force
+diff --git a/test/test-config.84.in b/test/test-config.84.in
+new file mode 100644
+index 0000000..1a79bfe
+--- /dev/null
++++ b/test/test-config.84.in
+@@ -0,0 +1,3 @@
++&DIR&/log/*/* {
++    rotate 1
++}
+-- 
+2.21.3
+
