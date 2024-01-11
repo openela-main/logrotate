@@ -1,0 +1,33 @@
+From a045dbad7370109a8ddf16a24090b8357a9b73fd Mon Sep 17 00:00:00 2001
+From: Kamil Dudka <kdudka@redhat.com>
+Date: Mon, 26 Aug 2019 15:13:16 +0200
+Subject: [PATCH] examples/btmp: use create mode 0660
+
+... to make the created file accessible by the utmp group.
+
+Bug: https://bugzilla.redhat.com/1745330
+Suggested-by: Steve Grubb
+
+Closes #257
+
+Upstream-commit: b1bddec3e73bff4282bcd4845f27ab7b375469da
+Signed-off-by: Kamil Dudka <kdudka@redhat.com>
+---
+ examples/btmp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/examples/btmp b/examples/btmp
+index 393ead5..0aa1ae1 100644
+--- a/examples/btmp
++++ b/examples/btmp
+@@ -2,6 +2,6 @@
+ /var/log/btmp {
+     missingok
+     monthly
+-    create 0600 root utmp
++    create 0660 root utmp
+     rotate 1
+ }
+-- 
+2.37.3
+

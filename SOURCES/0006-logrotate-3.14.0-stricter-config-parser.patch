@@ -1,0 +1,635 @@
+From 92067ac8e75b3d1f431982d8156da5ffb18df249 Mon Sep 17 00:00:00 2001
+From: Kamil Dudka <kdudka@redhat.com>
+Date: Thu, 7 Jun 2018 14:49:07 +0200
+Subject: [PATCH 1/7] return non-zero exit status if a config file contains an
+ error
+
+... which causes the config file to be skipped
+
+Closes #199
+Closes #204
+
+Upstream-commit: e547b942ebdf58026f0b28a74b3d02a7674e38dc
+Signed-off-by: Kamil Dudka <kdudka@redhat.com>
+---
+ config.c               |  1 +
+ test/Makefile.am       |  1 +
+ test/test-0083.sh      | 14 ++++++++++++++
+ test/test-config.83.in |  3 +++
+ 4 files changed, 19 insertions(+)
+ create mode 100755 test/test-0083.sh
+ create mode 100644 test/test-config.83.in
+
+diff --git a/config.c b/config.c
+index 1805a16..ec4c5fb 100644
+--- a/config.c
++++ b/config.c
+@@ -1820,6 +1820,7 @@ static int readConfigFile(const char *configFile, struct logInfo *defConfig)
+ 			message(MESS_ERROR, "found error in %s, skipping\n",
+ 				newlog->pattern ? newlog->pattern : "log config");
+ 
++			logerror = 1;
+ 			state = STATE_SKIP_CONFIG;
+ 			break;
+ 		case STATE_LOAD_SCRIPT:
+diff --git a/test/Makefile.am b/test/Makefile.am
+index 35ba2b9..cfe09c4 100644
+--- a/test/Makefile.am
++++ b/test/Makefile.am
+@@ -76,6 +76,7 @@ TEST_CASES = \
+ 	test-0075.sh \
+ 	test-0076.sh \
+ 	test-0077.sh \
++	test-0083.sh \
+ 	test-0084.sh \
+ 	test-0100.sh \
+ 	test-0101.sh
+diff --git a/test/test-0083.sh b/test/test-0083.sh
+new file mode 100755
+index 0000000..f6cf26c
+--- /dev/null
++++ b/test/test-0083.sh
+@@ -0,0 +1,14 @@
++#!/bin/bash
++
++. ./test-common.sh
++
++cleanup 83
++
++# ------------------------------- Test 83 ------------------------------------
++preptest test.log 83 1
++
++if $RLR test-config.83 -v --force; then
++    exit 1
++else
++    exit 0
++fi
+diff --git a/test/test-config.83.in b/test/test-config.83.in
+new file mode 100644
+index 0000000..f8a36f8
+--- /dev/null
++++ b/test/test-config.83.in
+@@ -0,0 +1,3 @@
++&DIR&/test.log {
++    rotate 1 # invalid comment
++}
+-- 
+2.38.1
+
+
+From d6b10a7dd5946a6bce400ab87fd1adbde832c046 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20G=C3=B6ttsche?= <cgzones@googlemail.com>
+Date: Tue, 20 Apr 2021 17:41:10 +0200
+Subject: [PATCH 2/7] Log if keyword is not properly separated
+
+The man page states
+  Values are separated from directives by whitespace and/or an
+  optional =.
+
+But logrotate does accept no separator, like
+  rotate7
+
+Log those occurrences with a normal severity, as this usage is not
+intended.
+
+Upstream-commit: 2b588b5ec2e5c27bee857c4abeddafa6a9602ebc
+Signed-off-by: Kamil Dudka <kdudka@redhat.com>
+---
+ config.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/config.c b/config.c
+index ec4c5fb..cfbb3d1 100644
+--- a/config.c
++++ b/config.c
+@@ -1047,6 +1047,11 @@ static int readConfigFile(const char *configFile, struct logInfo *defConfig)
+ 				key = isolateWord(&start, &buf, length);
+ 				if (key == NULL)
+ 					continue;
++				if (!isspace((unsigned char)*start)) {
++					message(MESS_NORMAL, "%s:%d keyword '%s' not properly"
++							" separated, found %#x\n",
++							configFile, lineNum, key, *start);
++				}
+ 				if (!strcmp(key, "compress")) {
+ 					newlog->flags |= LOG_FLAG_COMPRESS;
+ 				} else if (!strcmp(key, "nocompress")) {
+-- 
+2.38.1
+
+
+From 0881276c62ac95d803371f3f5c6cf11ffb552211 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20G=C3=B6ttsche?= <cgzones@googlemail.com>
+Date: Tue, 20 Apr 2021 17:41:12 +0200
+Subject: [PATCH 3/7] Log error on keyword parse failure
+
+isolateWord() only fails on OOM and EOF.
+
+Upstream-commit: 326179a901b0a8d10e902cae0abab0c68d7abc98
+Signed-off-by: Kamil Dudka <kdudka@redhat.com>
+---
+ config.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/config.c b/config.c
+index cfbb3d1..5a774ac 100644
+--- a/config.c
++++ b/config.c
+@@ -1045,8 +1045,11 @@ static int readConfigFile(const char *configFile, struct logInfo *defConfig)
+ 			if (isalpha((unsigned char)*start)) {
+ 				free(key);
+ 				key = isolateWord(&start, &buf, length);
+-				if (key == NULL)
++				if (key == NULL) {
++					message(MESS_ERROR, "%s:%d failed to parse keyword\n",
++							configFile, lineNum);
+ 					continue;
++				}
+ 				if (!isspace((unsigned char)*start)) {
+ 					message(MESS_NORMAL, "%s:%d keyword '%s' not properly"
+ 							" separated, found %#x\n",
+-- 
+2.38.1
+
+
+From 539b863fbd211b61614493447040cb340b53f0c0 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20G=C3=B6ttsche?= <cgzones@googlemail.com>
+Date: Tue, 20 Apr 2021 17:41:20 +0200
+Subject: [PATCH 4/7] Fail on parse error of required option value
+
+Fail on a parse error of a required option value of the directives
+include, extension, addextension, rotate, start, minage, maxage,
+shredcycles and su.
+Failing is better than silently skipping a directive and running with an
+undesired configuration.
+
+Upstream-commit: 906ea11981cb1842538c4aaed395885fda693e47
+Signed-off-by: Kamil Dudka <kdudka@redhat.com>
+---
+ config.c | 49 ++++++++++++++++++++++++++++++-------------------
+ 1 file changed, 30 insertions(+), 19 deletions(-)
+
+diff --git a/config.c b/config.c
+index 5a774ac..ae7bf4b 100644
+--- a/config.c
++++ b/config.c
+@@ -1110,8 +1110,11 @@ static int readConfigFile(const char *configFile, struct logInfo *defConfig)
+ 					mode_t tmp_mode = NO_MODE;
+ 					free(key);
+ 					key = isolateLine(&start, &buf, length);
+-					if (key == NULL)
+-						continue;
++					if (key == NULL) {
++						message(MESS_ERROR, "%s:%d failed to parse su option value\n",
++								configFile, lineNum);
++						RAISE_ERROR();
++					}
+ 
+ 					rv = readModeUidGid(configFile, lineNum, key, "su",
+ 								   &tmp_mode, &newlog->suUid,
+@@ -1209,13 +1212,14 @@ static int readConfigFile(const char *configFile, struct logInfo *defConfig)
+ 					free(key);
+ 					key = isolateValue(configFile, lineNum, "shred cycles",
+ 							&start, &buf, length);
+-					if (key == NULL)
+-						continue;
++					if (key == NULL) {
++						RAISE_ERROR();
++					}
+ 					newlog->shred_cycles = strtoul(key, &chptr, 0);
+ 					if (*chptr || newlog->shred_cycles < 0) {
+ 						message(MESS_ERROR, "%s:%d bad shred cycles '%s'\n",
+ 								configFile, lineNum, key);
+-						goto error;
++						RAISE_ERROR();
+ 					}
+ 				} else if (!strcmp(key, "hourly")) {
+ 					newlog->criterium = ROT_HOURLY;
+@@ -1250,8 +1254,9 @@ static int readConfigFile(const char *configFile, struct logInfo *defConfig)
+ 					free(key);
+ 					key = isolateValue(configFile, lineNum, "rotate count", &start,
+ 						&buf, length);
+-					if (key == NULL)
+-						continue;
++					if (key == NULL) {
++						RAISE_ERROR();
++					}
+ 					newlog->rotateCount = strtoul(key, &chptr, 0);
+ 					if (*chptr || newlog->rotateCount < 0) {
+ 						message(MESS_ERROR,
+@@ -1263,8 +1268,9 @@ static int readConfigFile(const char *configFile, struct logInfo *defConfig)
+ 					free(key);
+ 					key = isolateValue(configFile, lineNum, "start count", &start,
+ 						&buf, length);
+-					if (key == NULL)
+-						continue;
++					if (key == NULL) {
++						RAISE_ERROR();
++					}
+ 					newlog->logStart = strtoul(key, &chptr, 0);
+ 					if (*chptr || newlog->logStart < 0) {
+ 						message(MESS_ERROR, "%s:%d bad start count '%s'\n",
+@@ -1275,8 +1281,9 @@ static int readConfigFile(const char *configFile, struct logInfo *defConfig)
+ 					free(key);
+ 					key = isolateValue(configFile, lineNum, "minage count", &start,
+ 						&buf, length);
+-					if (key == NULL)
+-						continue;
++					if (key == NULL) {
++						RAISE_ERROR();
++					}
+ 					newlog->rotateMinAge = strtoul(key, &chptr, 0);
+ 					if (*chptr || newlog->rotateMinAge < 0) {
+ 						message(MESS_ERROR, "%s:%d bad minimum age '%s'\n",
+@@ -1287,8 +1294,9 @@ static int readConfigFile(const char *configFile, struct logInfo *defConfig)
+ 					free(key);
+ 					key = isolateValue(configFile, lineNum, "maxage count", &start,
+ 						&buf, length);
+-					if (key == NULL)
+-						continue;
++					if (key == NULL) {
++						RAISE_ERROR();
++					}
+ 					newlog->rotateAge = strtoul(key, &chptr, 0);
+ 					if (*chptr || newlog->rotateAge < 0) {
+ 						message(MESS_ERROR, "%s:%d bad maximum age '%s'\n",
+@@ -1443,8 +1451,9 @@ static int readConfigFile(const char *configFile, struct logInfo *defConfig)
+ 					free(key);
+ 					key = isolateValue(configFile, lineNum, "include", &start,
+ 							&buf, length);
+-					if (key == NULL)
+-						continue;
++					if (key == NULL) {
++						RAISE_ERROR();
++					}
+ 					message(MESS_DEBUG, "including %s\n", key);
+ 					if (recursion_depth >= MAX_NESTING) {
+ 						message(MESS_ERROR, "%s:%d include nesting too deep\n",
+@@ -1473,8 +1482,9 @@ static int readConfigFile(const char *configFile, struct logInfo *defConfig)
+ 					free(key);
+ 					key = isolateValue(configFile, lineNum, "extension name", &start,
+ 							&buf, length);
+-					if (key == NULL)
+-						continue;
++					if (key == NULL) {
++						RAISE_ERROR();
++					}
+ 					freeLogItem (extension);
+ 					newlog->extension = key;
+ 					key = NULL;
+@@ -1484,8 +1494,9 @@ static int readConfigFile(const char *configFile, struct logInfo *defConfig)
+ 					free(key);
+ 					key = isolateValue(configFile, lineNum, "addextension name", &start,
+ 							&buf, length);
+-					if (key == NULL)
+-						continue;
++					if (key == NULL) {
++						RAISE_ERROR();
++					}
+ 					freeLogItem (addextension);
+ 					newlog->addextension = key;
+ 					key = NULL;
+-- 
+2.38.1
+
+
+From bf20b227b45b232eec9b659839d7ae20604f5de3 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20G=C3=B6ttsche?= <cgzones@googlemail.com>
+Date: Mon, 26 Jul 2021 19:35:00 +0200
+Subject: [PATCH 5/7] Do not warn on key value pair separated by only an equal
+ sign
+
+Do not warn if a configuration directive is specified with the key and
+value separated by just an equal sign, like:
+
+    size=+2048k
+
+The warning is intended for the usage of:
+
+    size2048k
+
+Fixes: 2b588b5e ("Log if keyword is not properly separated")
+Fixes: #410
+
+Upstream-commit: a98c38bc867ec59e00625b48262bb3334c8f5728
+Signed-off-by: Kamil Dudka <kdudka@redhat.com>
+---
+ config.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/config.c b/config.c
+index ae7bf4b..569104d 100644
+--- a/config.c
++++ b/config.c
+@@ -1050,7 +1050,7 @@ static int readConfigFile(const char *configFile, struct logInfo *defConfig)
+ 							configFile, lineNum);
+ 					continue;
+ 				}
+-				if (!isspace((unsigned char)*start)) {
++				if (!isspace((unsigned char)*start) && *start != '=') {
+ 					message(MESS_NORMAL, "%s:%d keyword '%s' not properly"
+ 							" separated, found %#x\n",
+ 							configFile, lineNum, key, *start);
+-- 
+2.38.1
+
+
+From 07faa84dc2e31002b0212c0b57669595ef9be99d Mon Sep 17 00:00:00 2001
+From: Felix Wilhelm <fwilhelm@google.com>
+Date: Thu, 21 Oct 2021 09:47:57 +0000
+Subject: [PATCH 6/7] config.c: enforce stricter parsing of config files
+
+Abort parsing of config files that contain invalid lines.
+This makes it harder to abuse logrotate for privilege escalation
+attacks where an attacker can partially control a privileged file write.
+
+Upstream-commit: 124e4ca6532b0fe823fa2ec145294547b3aaeb4b
+Signed-off-by: Kamil Dudka <kdudka@redhat.com>
+---
+ config.c                |  7 ++++---
+ test/Makefile.am        |  4 +++-
+ test/test-0102.sh       | 16 ++++++++++++++++
+ test/test-0103.sh       | 16 ++++++++++++++++
+ test/test-config.102.in | 10 ++++++++++
+ test/test-config.103.in | 12 ++++++++++++
+ 6 files changed, 61 insertions(+), 4 deletions(-)
+ create mode 100755 test/test-0102.sh
+ create mode 100755 test/test-0103.sh
+ create mode 100644 test/test-config.102.in
+ create mode 100644 test/test-config.103.in
+
+diff --git a/config.c b/config.c
+index 569104d..36765be 100644
+--- a/config.c
++++ b/config.c
+@@ -1048,12 +1048,13 @@ static int readConfigFile(const char *configFile, struct logInfo *defConfig)
+ 				if (key == NULL) {
+ 					message(MESS_ERROR, "%s:%d failed to parse keyword\n",
+ 							configFile, lineNum);
+-					continue;
++					RAISE_ERROR();
+ 				}
+ 				if (!isspace((unsigned char)*start) && *start != '=') {
+-					message(MESS_NORMAL, "%s:%d keyword '%s' not properly"
++					message(MESS_ERROR, "%s:%d keyword '%s' not properly"
+ 							" separated, found %#x\n",
+ 							configFile, lineNum, key, *start);
++					RAISE_ERROR();
+ 				}
+ 				if (!strcmp(key, "compress")) {
+ 					newlog->flags |= LOG_FLAG_COMPRESS;
+@@ -1805,7 +1806,7 @@ static int readConfigFile(const char *configFile, struct logInfo *defConfig)
+ 				message(MESS_ERROR, "%s:%d lines must begin with a keyword "
+ 					"or a filename (possibly in double quotes)\n",
+ 					configFile, lineNum);
+-					state = STATE_SKIP_LINE;
++				RAISE_ERROR();
+ 			}
+ 			break;
+ 		case STATE_SKIP_LINE:
+diff --git a/test/Makefile.am b/test/Makefile.am
+index cfe09c4..255c1f7 100644
+--- a/test/Makefile.am
++++ b/test/Makefile.am
+@@ -79,7 +79,9 @@ TEST_CASES = \
+ 	test-0083.sh \
+ 	test-0084.sh \
+ 	test-0100.sh \
+-	test-0101.sh
++	test-0101.sh \
++	test-0102.sh \
++	test-0103.sh
+ 
+ EXTRA_DIST = \
+ 	compress \
+diff --git a/test/test-0102.sh b/test/test-0102.sh
+new file mode 100755
+index 0000000..d2550a5
+--- /dev/null
++++ b/test/test-0102.sh
+@@ -0,0 +1,16 @@
++#!/bin/sh
++
++. ./test-common.sh
++
++cleanup 102
++
++# ------------------------------- Test 102 ------------------------------------
++# test invalid config file with binary content
++preptest test.log 102 1
++
++$RLR test-config.102 --force
++
++if [ $? -eq 0 ]; then
++   echo "No error, but there should be one."
++   exit 3
++fi
+diff --git a/test/test-0103.sh b/test/test-0103.sh
+new file mode 100755
+index 0000000..bccd8ed
+--- /dev/null
++++ b/test/test-0103.sh
+@@ -0,0 +1,16 @@
++#!/bin/sh
++
++. ./test-common.sh
++
++cleanup 103
++
++# ------------------------------- Test 103 ------------------------------------
++# test invalid config file with unknown keywords
++preptest test.log 103 1
++
++$RLR test-config.103 --force
++
++if [ $? -eq 0 ]; then
++   echo "No error, but there should be one."
++   exit 3
++fi
+diff --git a/test/test-config.102.in b/test/test-config.102.in
+new file mode 100644
+index 0000000..cbca4c4
+--- /dev/null
++++ b/test/test-config.102.in
+@@ -0,0 +1,10 @@
++ELF
++
++&DIR&/test.log {
++ daily
++ size=0
++
++firstaction
++ /bin/sh -c "echo test123"
++ endscript
++}
+diff --git a/test/test-config.103.in b/test/test-config.103.in
+new file mode 100644
+index 0000000..ef4d19c
+--- /dev/null
++++ b/test/test-config.103.in
+@@ -0,0 +1,12 @@
++random noise
++a b c d
++a::x
++
++&DIR&/test.log {
++ daily
++ size=0
++
++firstaction
++ /bin/sh -c "echo test123"
++ endscript
++}
+-- 
+2.38.1
+
+
+From 88870bf2d84f65d0f2633bb32b7dc696be51d202 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20G=C3=B6ttsche?= <cgzones@googlemail.com>
+Date: Mon, 13 Dec 2021 21:47:16 +0100
+Subject: [PATCH 7/7] Add more testcases for stricter configuration parsing
+
+Upstream-commit: 9cbc22b91caff6cfbd1378737c62276bd9ffe3e7
+Signed-off-by: Kamil Dudka <kdudka@redhat.com>
+---
+ test/Makefile.am        |  4 +++-
+ test/test-0102.sh       |  5 +++++
+ test/test-0103.sh       |  5 +++++
+ test/test-0104.sh       | 19 +++++++++++++++++++
+ test/test-0105.sh       | 25 +++++++++++++++++++++++++
+ test/test-config.104.in |  8 ++++++++
+ test/test-config.105.in |  8 ++++++++
+ 7 files changed, 73 insertions(+), 1 deletion(-)
+ create mode 100755 test/test-0104.sh
+ create mode 100755 test/test-0105.sh
+ create mode 100644 test/test-config.104.in
+ create mode 100644 test/test-config.105.in
+
+diff --git a/test/Makefile.am b/test/Makefile.am
+index 255c1f7..a489a76 100644
+--- a/test/Makefile.am
++++ b/test/Makefile.am
+@@ -81,7 +81,9 @@ TEST_CASES = \
+ 	test-0100.sh \
+ 	test-0101.sh \
+ 	test-0102.sh \
+-	test-0103.sh
++	test-0103.sh \
++	test-0104.sh \
++	test-0105.sh
+ 
+ EXTRA_DIST = \
+ 	compress \
+diff --git a/test/test-0102.sh b/test/test-0102.sh
+index d2550a5..367bde9 100755
+--- a/test/test-0102.sh
++++ b/test/test-0102.sh
+@@ -14,3 +14,8 @@ if [ $? -eq 0 ]; then
+    echo "No error, but there should be one."
+    exit 3
+ fi
++
++checkoutput <<EOF
++test.log 0 zero
++test.log.1 0 first
++EOF
+diff --git a/test/test-0103.sh b/test/test-0103.sh
+index bccd8ed..32a3c19 100755
+--- a/test/test-0103.sh
++++ b/test/test-0103.sh
+@@ -14,3 +14,8 @@ if [ $? -eq 0 ]; then
+    echo "No error, but there should be one."
+    exit 3
+ fi
++
++checkoutput <<EOF
++test.log 0 zero
++test.log.1 0 first
++EOF
+diff --git a/test/test-0104.sh b/test/test-0104.sh
+new file mode 100755
+index 0000000..e3c0009
+--- /dev/null
++++ b/test/test-0104.sh
+@@ -0,0 +1,19 @@
++#!/bin/sh
++
++. ./test-common.sh
++
++cleanup 104
++
++# ------------------------------- Test 104 ------------------------------------
++# test config with unknown (new?) keyword
++preptest test1.log 104 1
++preptest test2.log 104 1
++
++$RLR test-config.104 --force || exit 23
++
++checkoutput <<EOF
++test1.log 0
++test1.log.1 0 zero
++test2.log 0
++test2.log.1 0 zero
++EOF
+diff --git a/test/test-0105.sh b/test/test-0105.sh
+new file mode 100755
+index 0000000..b51e9be
+--- /dev/null
++++ b/test/test-0105.sh
+@@ -0,0 +1,25 @@
++#!/bin/sh
++
++. ./test-common.sh
++
++cleanup 105
++
++# ------------------------------- Test 105 ------------------------------------
++# test config with garbage keyword bails out
++preptest test1.log 105 1
++preptest test2.log 105 1
++
++$RLR test-config.105 --force
++
++if [ $? -eq 0 ]; then
++   echo "No error, but there should be one."
++   exit 3
++fi
++
++
++checkoutput <<EOF
++test1.log 0 zero
++test1.log.1 0 first
++test2.log 0
++test2.log.1 0 zero
++EOF
+diff --git a/test/test-config.104.in b/test/test-config.104.in
+new file mode 100644
+index 0000000..988d902
+--- /dev/null
++++ b/test/test-config.104.in
+@@ -0,0 +1,8 @@
++&DIR&/test1.log {
++    newkeyword
++    rotate 1
++}
++
++&DIR&/test2.log {
++    rotate 1
++}
+diff --git a/test/test-config.105.in b/test/test-config.105.in
+new file mode 100644
+index 0000000..bfab9b9
+--- /dev/null
++++ b/test/test-config.105.in
+@@ -0,0 +1,8 @@
++&DIR&/test1.log {
++    g@rbag€[]+#*
++    rotate 1
++}
++
++&DIR&/test2.log {
++    rotate 1
++}
+-- 
+2.38.1
+
