@@ -1,0 +1,68 @@
+From be64b6f0e42610be2a2b252fe30bd1bf7bf5d021 Mon Sep 17 00:00:00 2001
+From: Falk Werner <falk.werner@gmx.net>
+Date: Fri, 25 Nov 2022 18:28:03 +0100
+Subject: [PATCH 3/3] test-0107: cover the `ignoreduplicates` configuration
+ directive
+
+Closes: https://github.com/logrotate/logrotate/pull/473
+(cherry picked from commit bce6eec2c92f647940978feb12dc134a2bc20116)
+---
+ test/Makefile.am        |  3 ++-
+ test/test-0107.sh       | 15 +++++++++++++++
+ test/test-config.107.in |  8 ++++++++
+ 3 files changed, 25 insertions(+), 1 deletion(-)
+ create mode 100755 test/test-0107.sh
+ create mode 100644 test/test-config.107.in
+
+diff --git a/test/Makefile.am b/test/Makefile.am
+index f1a0062..69a5e45 100644
+--- a/test/Makefile.am
++++ b/test/Makefile.am
+@@ -93,7 +93,8 @@ TEST_CASES = \
+ 	test-0102.sh \
+ 	test-0103.sh \
+ 	test-0104.sh \
+-	test-0105.sh
++	test-0105.sh \
++	test-0107.sh
+ 
+ EXTRA_DIST = \
+ 	compress \
+diff --git a/test/test-0107.sh b/test/test-0107.sh
+new file mode 100755
+index 0000000..5a5c37f
+--- /dev/null
++++ b/test/test-0107.sh
+@@ -0,0 +1,15 @@
++#!/bin/sh
++
++. ./test-common.sh
++
++cleanup 107
++
++# ------------------------------- Test 107 ------------------------------------
++preptest test.log 107 1
++preptest zzzz.log 107 1
++$RLR test-config.107 --force || exit 23
++
++checkoutput <<EOF
++test.log.1 0 zero
++zzzz.log.1 0 zero
++EOF
+diff --git a/test/test-config.107.in b/test/test-config.107.in
+new file mode 100644
+index 0000000..b57ec7f
+--- /dev/null
++++ b/test/test-config.107.in
+@@ -0,0 +1,8 @@
++&DIR&/test.log {
++    rotate 1
++    ignoreduplicates
++}
++
++&DIR&/*.log {
++    rotate 1
++}
+-- 
+2.47.1
+

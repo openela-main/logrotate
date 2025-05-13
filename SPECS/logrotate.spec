@@ -1,7 +1,7 @@
 Summary: Rotates, compresses, removes and mails system log files
 Name: logrotate
 Version: 3.18.0
-Release: 8%{?dist}
+Release: 9%{?dist}
 License: GPLv2+
 URL: https://github.com/logrotate/logrotate
 Source0: https://github.com/logrotate/logrotate/releases/download/%{version}/logrotate-%{version}.tar.xz
@@ -21,6 +21,11 @@ Patch:   0004-logrotate-3.18.0-CVE-2022-1348.patch
 
 # enforce stricter parsing of config files (#2148925)
 Patch:   0005-logrotate-3.18.0-stricter-config-parser.patch
+
+# introduce `ignoreduplicates` configuration directive (RHEL-5711)
+Patch:   0006-logrotate-3.18.0-Ensure-the-type-for-configuration-flags-is-wide-enou.patch
+Patch:   0007-logrotate-3.18.0-config-introduce-ignoreduplicates-configuration-dire.patch
+Patch:   0008-logrotate-3.18.0-test-0107-cover-the-ignoreduplicates-configuration-d.patch
 
 BuildRequires: acl
 BuildRequires: automake
@@ -122,6 +127,9 @@ fi
 %config(noreplace) %{_sysconfdir}/rwtab.d/logrotate
 
 %changelog
+* Thu Jan 02 2025 Jan Macku <jamacku@redhat.com> - 3.18.0-9
+- config: introduce `ignoreduplicates` configuration directive (#RHEL-5711)
+
 * Tue Dec 20 2022 Kamil Dudka <kdudka@redhat.com> - 3.18.0-8
 - enforce stricter parsing of config files (#2148925)
 
