@@ -1,0 +1,145 @@
+From dd1562ebb0a205f8d47ff85b66a6d5b4e7a9e113 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20G=C3=B6ttsche?= <cgzones@googlemail.com>
+Date: Wed, 12 Jul 2023 21:47:54 +0200
+Subject: [PATCH 3/6] Handle non NUL terminated config files
+
+Avoid calling strndup(3) on pointers of the mapped config file in case
+the memory is not NUL terminated.
+
+Validate the current buffer location before dereferencing it if it might
+have been advanced after the check in the loop condition.
+
+Reported-by: blu3sh0rk
+(cherry picked from commit 39735f94bed266af08c047aa021d34682ff47433)
+---
+ config.c | 35 +++++++++++++++++++++++++----------
+ 1 file changed, 25 insertions(+), 10 deletions(-)
+
+diff --git a/config.c b/config.c
+index 33e283c..38ef0b0 100644
+--- a/config.c
++++ b/config.c
+@@ -159,6 +159,7 @@ static char *isolateLine(char **strt, char **buf, size_t length) {
+     char *endtag, *start, *tmp;
+     const char *max = *buf + length;
+     char *key;
++    size_t llen;
+ 
+     start = *strt;
+     endtag = start;
+@@ -167,13 +168,19 @@ static char *isolateLine(char **strt, char **buf, size_t length) {
+     if (max < endtag)
+         return NULL;
+     tmp = endtag - 1;
+-    while (isspace((unsigned char)*endtag))
++    while (endtag >= start && endtag < max && isspace((unsigned char)*endtag))
+         endtag--;
+-    key = strndup(start, (size_t)(endtag - start + 1));
++    llen = (size_t)(endtag - start + 1);
++    if (start + llen > max)
++        llen = (size_t)(max - start);
++    /* Avoid strndup(3) since the buffer might not be NUL-terminated. */
++    key = malloc(llen + 1);
+     if (key == NULL) {
+         message_OOM();
+         return NULL;
+     }
++    memcpy(key, start, llen);
++    key[llen] = '\0';
+     *strt = tmp;
+     return key;
+ }
+@@ -182,7 +189,7 @@ static char *isolateValue(const char *fileName, int lineNum, const char *key,
+                           char **startPtr, char **buf, size_t length)
+ {
+     char *chptr = *startPtr;
+-    const char *max = *startPtr + length;
++    const char *max = *buf + length;
+ 
+     while (chptr < max && isblank((unsigned char)*chptr))
+         chptr++;
+@@ -206,6 +213,8 @@ static char *isolateWord(char **strt, char **buf, size_t length) {
+     char *endtag, *start;
+     const char *max = *buf + length;
+     char *key;
++    size_t wlen;
++
+     start = *strt;
+     while (start < max && isblank((unsigned char)*start))
+         start++;
+@@ -214,11 +223,15 @@ static char *isolateWord(char **strt, char **buf, size_t length) {
+         endtag++;}
+     if (max < endtag)
+         return NULL;
+-    key = strndup(start, (size_t)(endtag - start));
++    wlen = (size_t)(endtag - start);
++    /* Avoid strndup(3) since the buffer might not be NUL-terminated. */
++    key = malloc(wlen + 1);
+     if (key == NULL) {
+         message_OOM();
+         return NULL;
+     }
++    memcpy(key, start, wlen);
++    key[wlen] = '\0';
+     *strt = endtag;
+     return key;
+ }
+@@ -1091,7 +1104,9 @@ static int readConfigFile(const char *configFile, struct logInfo *defConfig)
+                                 configFile, lineNum);
+                         RAISE_ERROR();
+                     }
+-                    if (!isspace((unsigned char)*start) && *start != '=') {
++                    if (start < buf + length &&
++                        !isspace((unsigned char)*start) &&
++                        *start != '=') {
+                         message(MESS_ERROR, "%s:%d keyword '%s' not properly"
+                                 " separated, found %#x\n",
+                                 configFile, lineNum, key, *start);
+@@ -1709,7 +1724,7 @@ static int readConfigFile(const char *configFile, struct logInfo *defConfig)
+                     } else {
+                         message(MESS_ERROR, "%s:%d unknown option '%s' "
+                                 "-- ignoring line\n", configFile, lineNum, key);
+-                        if (*start != '\n')
++                        if (start < buf + length && *start != '\n')
+                             state = STATE_SKIP_LINE;
+                     }
+                 } else if (*start == '/' || *start == '"' || *start == '\''
+@@ -2048,7 +2063,7 @@ duperror:
+                     }
+                     else {
+                         const char *endtag = start - 9;
+-                        while (*endtag != '\n')
++                        while (endtag > scriptStart && *endtag != '\n')
+                             endtag--;
+                         endtag++;
+                         *scriptDest = strndup(scriptStart, (size_t)(endtag - scriptStart));
+@@ -2063,7 +2078,7 @@ duperror:
+                     state = (state & STATE_SKIP_CONFIG) ? STATE_SKIP_CONFIG : STATE_DEFAULT;
+                 }
+                 else {
+-                    state = (*start == '\n' ? 0 : STATE_SKIP_LINE) |
++                    state = (start < buf + length && *start == '\n' ? 0 : STATE_SKIP_LINE) |
+                         STATE_LOAD_SCRIPT |
+                         ((state & STATE_SKIP_CONFIG) ? STATE_SKIP_CONFIG : 0);
+                 }
+@@ -2103,7 +2118,7 @@ duperror:
+                          * pointer is increased by one and, after this,
+                          * "start" points to the beginning of the next line.
+                          */
+-                        if (*start != '\n') {
++                        if (start < buf + length && *start != '\n') {
+                             state = STATE_SKIP_LINE | STATE_SKIP_CONFIG;
+                         }
+                     }
+@@ -2114,7 +2129,7 @@ duperror:
+                         "%s: %d: readConfigFile() unknown state\n",
+                         configFile, lineNum);
+         }
+-        if (*start == '\n') {
++        if (start < buf + length && *start == '\n') {
+             lineNum++;
+         }
+ 
+-- 
+2.49.0
+

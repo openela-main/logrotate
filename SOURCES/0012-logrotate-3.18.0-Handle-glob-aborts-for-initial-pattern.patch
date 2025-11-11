@@ -1,0 +1,40 @@
+From ff9b66a455b890f86d38dbb772e295fa183733e4 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20G=C3=B6ttsche?= <cgzones@googlemail.com>
+Date: Wed, 12 Jul 2023 21:47:52 +0200
+Subject: [PATCH 2/6] Handle glob aborts for initial pattern
+
+In case glob(3) fails with GLOB_ABORTED, e.g. due to missing file
+permissions, the number of path matches gets set to 0.  If the number of
+path matches is 0 and there have been no other files matched yet the
+following realloc(3) call will be called with a size of 0, free'ing the
+array.  Since the array gets only assigned to the realloc(3) result in
+the non NULL case, the free'd array pointer is retained and any further
+access, e.g. by a future glob result, will result in a use-after-free.
+
+Reported-by: blu3sh0rk
+(cherry picked from commit f444a9858e306c94db37f9d7ddbae817530e949e)
+---
+ config.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/config.c b/config.c
+index 96f34f8..33e283c 100644
+--- a/config.c
++++ b/config.c
+@@ -1804,6 +1804,13 @@ static int readConfigFile(const char *configFile, struct logInfo *defConfig)
+                             globResult.gl_pathc = 0;
+                         }
+ 
++                        if (globResult.gl_pathc == 0) {
++                            message(MESS_DEBUG, "%s:%d no matches for glob '%s', skipping\n",
++                                    configFile, lineNum, argv[argNum]);
++                            globfree(&globResult);
++                            continue;
++                        }
++
+                         tmp = realloc(newlog->files,
+                                     sizeof(*newlog->files) * (newlog->numFiles +
+                                         globResult.
+-- 
+2.49.0
+

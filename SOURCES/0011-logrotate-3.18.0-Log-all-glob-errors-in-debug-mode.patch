@@ -1,0 +1,38 @@
+From 5bbd4c6f55b8ce61953803d05e091897d26a2e7c Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20G=C3=B6ttsche?= <cgzones@googlemail.com>
+Date: Wed, 12 Jul 2023 21:47:45 +0200
+Subject: [PATCH 1/6] Log all glob errors in debug mode
+
+In case glob(3) returns GLOB_ABORTED always log the error message in
+debug mode, since it might be overridden by a further pattern from the
+same file statement.
+
+Also log an OOM message if asprintf(3) fails.
+
+Reported-by: blu3sh0rk
+(cherry picked from commit 7d6ecd67e2c2ab99e26693a0347a2361d11c51e1)
+---
+ config.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/config.c b/config.c
+index e76fad0..96f34f8 100644
+--- a/config.c
++++ b/config.c
+@@ -1794,8 +1794,12 @@ static int readConfigFile(const char *configFile, struct logInfo *defConfig)
+                              * set, so store the error message for later. */
+                             rc = asprintf(&globerr_msg, "%s:%d glob failed for %s: %s\n",
+                                           configFile, lineNum, argv[argNum], strerror(glob_errno));
+-                            if (rc == -1)
++                            if (rc == -1) {
++                                message_OOM();
+                                 globerr_msg = NULL;
++                            } else {
++                                message(MESS_DEBUG, "%s", globerr_msg);
++                            }
+ 
+                             globResult.gl_pathc = 0;
+                         }
+-- 
+2.49.0
+

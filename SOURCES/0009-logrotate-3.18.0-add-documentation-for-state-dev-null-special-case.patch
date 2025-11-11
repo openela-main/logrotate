@@ -1,0 +1,30 @@
+From 4ad3d9c362ecd72dd733338d36dde740e5363857 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Tom=C3=A1=C5=A1=20Posp=C3=AD=C5=A1ek?=
+ <tpo_deb@sourcepole.ch>
+Date: Thu, 3 Jun 2021 10:37:47 +0200
+Subject: [PATCH 1/2] add documentation for --state /dev/null special case
+
+This is documentation for the suggested implementation of #395 aka `--state /dev/null` will not write any state file.
+
+Closes: https://github.com/logrotate/logrotate/pull/396
+(cherry picked from commit ecccf4778695dc5cb3c25bfd13e7a0ab9dc50ec4)
+---
+ logrotate.8.in | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/logrotate.8.in b/logrotate.8.in
+index e0a3ed8..bde2a0e 100644
+--- a/logrotate.8.in
++++ b/logrotate.8.in
+@@ -75,6 +75,8 @@ if \fBlogrotate\fR is being run as a different user for various sets of
+ log files.  To prevent parallel execution \fBlogrotate\fR by default
+ acquires a lock on the state file, if it cannot be acquired \fBlogrotate\fR
+ will exit with value 3.  The default state file is \fI@STATE_FILE_PATH@\fR.
++If \fI/dev/null\fR is given as the state file, then \fBlogrotate\fR will
++not try to write the state file.
+ 
+ .TP
+ \fB\-\-skip-state-lock\fR
+-- 
+2.49.0
+

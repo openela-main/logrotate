@@ -1,7 +1,7 @@
 Summary: Rotates, compresses, removes and mails system log files
 Name: logrotate
 Version: 3.18.0
-Release: 9%{?dist}
+Release: 12%{?dist}
 License: GPLv2+
 URL: https://github.com/logrotate/logrotate
 Source0: https://github.com/logrotate/logrotate/releases/download/%{version}/logrotate-%{version}.tar.xz
@@ -26,6 +26,19 @@ Patch:   0005-logrotate-3.18.0-stricter-config-parser.patch
 Patch:   0006-logrotate-3.18.0-Ensure-the-type-for-configuration-flags-is-wide-enou.patch
 Patch:   0007-logrotate-3.18.0-config-introduce-ignoreduplicates-configuration-dire.patch
 Patch:   0008-logrotate-3.18.0-test-0107-cover-the-ignoreduplicates-configuration-d.patch
+
+# allow to disable state management (RHEL-69959)
+Patch:  0009-logrotate-3.18.0-add-documentation-for-state-dev-null-special-case.patch
+Patch:  0010-logrotate-3.18.0-Do-not-lock-state-file-dev-null.patch
+Patch:  0017-logrotate-3.18.0-writeState-do-nothing-if-state-file-is-dev-null.patch
+
+# fix memory corruption issues in config file parsing
+Patch:  0011-logrotate-3.18.0-Log-all-glob-errors-in-debug-mode.patch
+Patch:  0012-logrotate-3.18.0-Handle-glob-aborts-for-initial-pattern.patch
+Patch:  0013-logrotate-3.18.0-Handle-non-NUL-terminated-config-files.patch
+Patch:  0014-logrotate-3.18.0-Limit-glob-length-to-avoid-stack-overflow-in-glob-3.patch
+Patch:  0015-logrotate-3.18.0-Avoid-date-format-overflow-issues.patch
+Patch:  0016-logrotate-3.18.0-Use-strnlen-in-private-strndup-implementation.patch
 
 BuildRequires: acl
 BuildRequires: automake
@@ -127,6 +140,15 @@ fi
 %config(noreplace) %{_sysconfdir}/rwtab.d/logrotate
 
 %changelog
+* Wed Jun 11 2025 Jan Macku <jamacku@redhat.com> - 3.18.0-12
+- allow to disable state management (RHEL-69959)
+
+* Fri Jun 06 2025 Jan Macku <jamacku@redhat.com> - 3.18.0-11
+- fix memory corruption issues in config file parsing (RHEL-91449)
+
+* Fri May 30 2025 Jan Macku <jamacku@redhat.com> - 3.18.0-10
+- allow to disable state management (RHEL-69959)
+
 * Thu Jan 02 2025 Jan Macku <jamacku@redhat.com> - 3.18.0-9
 - config: introduce `ignoreduplicates` configuration directive (#RHEL-5711)
 

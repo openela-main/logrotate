@@ -1,0 +1,49 @@
+From 83f251b7537cb5da1fb5fa12bee68f22643420dd Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20G=C3=B6ttsche?= <cgzones@googlemail.com>
+Date: Thu, 27 Jul 2023 17:42:36 +0200
+Subject: [PATCH 6/6] Use strnlen() in private strndup() implementation
+
+strndup() might be called on non NUL terminated buffers, thus use
+strnlen().
+
+Since for this code to be active strndup() has not to be supported by
+the standard C library of the system, use a private version of strnlen()
+as well.
+
+(cherry picked from commit 21c614410abe68c894804d0efbae730cb87c14bb)
+---
+ config.c | 13 +++++++++----
+ 1 file changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/config.c b/config.c
+index b213b38..2eddcec 100644
+--- a/config.c
++++ b/config.c
+@@ -80,15 +80,20 @@ int asprintf(char **string_ptr, const char *format, ...)
+ #endif
+ 
+ #if !defined(HAVE_STRNDUP)
++static size_t logr__strnlen(const char *s, size_t n)
++{
++    const char *p;
++
++    p = memchr(s, '\0', n);
++    return p ? (size_t)(p - s) : n;
++}
++
+ char *strndup(const char *s, size_t n)
+ {
+     size_t nAvail;
+     char *p;
+ 
+-    /* min() */
+-    nAvail = strlen(s) + 1;
+-    if ( (n + 1) < nAvail)
+-        nAvail = n + 1;
++    nAvail = logr__strnlen(s, n) + 1;
+ 
+     p = malloc(nAvail);
+     if (!p)
+-- 
+2.49.0
+

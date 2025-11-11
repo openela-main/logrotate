@@ -1,0 +1,43 @@
+From f9a14b026c5c771a0bc89e204f96d7ca4d112db6 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20G=C3=B6ttsche?= <cgzones@googlemail.com>
+Date: Wed, 12 Jul 2023 21:47:56 +0200
+Subject: [PATCH 4/6] Limit glob length to avoid stack overflow in glob(3)
+
+Limit the supported length of glob pattern to 2048 to avoid stack
+overflows inside glob(3) due to recursion.
+
+Reported-by: blu3sh0rk
+(cherry picked from commit 0271501ae37b1455b98abc00b9bb77096610462b)
+---
+ config.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/config.c b/config.c
+index 38ef0b0..b213b38 100644
+--- a/config.c
++++ b/config.c
+@@ -1787,6 +1787,7 @@ static int readConfigFile(const char *configFile, struct logInfo *defConfig)
+                     newlog->numFiles = 0;
+                     for (argNum = 0; argNum < argc; argNum++) {
+                         char **tmp;
++                        size_t argLen = strlen(argv[argNum]);
+                         int rc;
+                         glob_t globResult;
+ 
+@@ -1795,6 +1796,13 @@ static int readConfigFile(const char *configFile, struct logInfo *defConfig)
+                             globerr_msg = NULL;
+                         }
+ 
++                        if (argLen > 2048) {
++                            message(MESS_ERROR, "%s:%d glob too long (%zu > 2048)\n",
++                                    configFile, lineNum, argLen);
++                            logerror = 1;
++                            continue;
++                        }
++
+                         rc = glob(argv[argNum], GLOB_NOCHECK
+ #ifdef GLOB_TILDE
+                                 | GLOB_TILDE
+-- 
+2.49.0
+

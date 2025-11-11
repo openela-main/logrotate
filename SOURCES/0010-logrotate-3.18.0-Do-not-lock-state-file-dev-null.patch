@@ -1,0 +1,52 @@
+From 887287f6b7e7e6bd991d262d71436237617ab696 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20G=C3=B6ttsche?= <cgzones@googlemail.com>
+Date: Mon, 17 Jan 2022 17:39:08 +0100
+Subject: [PATCH 2/2] Do not lock state file /dev/null
+
+state file is desired.
+lockState() tries to open and lock the state file to avoid issues with
+concurrent instances, see #295.
+Locking the character file /dev/null might either be not supported, e.g.
+on Debian GNU/Hurd (hurd-i386), nor not allowed, e.g. by SELinux.
+
+(cherry picked from commit c7078c2b393fce376d79317a9a03de8b8e404cde)
+---
+ logrotate.8.in | 2 +-
+ logrotate.c    | 8 +++++++-
+ 2 files changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/logrotate.8.in b/logrotate.8.in
+index bde2a0e..c0ac5c4 100644
+--- a/logrotate.8.in
++++ b/logrotate.8.in
+@@ -76,7 +76,7 @@ log files.  To prevent parallel execution \fBlogrotate\fR by default
+ acquires a lock on the state file, if it cannot be acquired \fBlogrotate\fR
+ will exit with value 3.  The default state file is \fI@STATE_FILE_PATH@\fR.
+ If \fI/dev/null\fR is given as the state file, then \fBlogrotate\fR will
+-not try to write the state file.
++not try to lock or write the state file.
+ 
+ .TP
+ \fB\-\-skip-state-lock\fR
+diff --git a/logrotate.c b/logrotate.c
+index 819aaed..1bb95b2 100644
+--- a/logrotate.c
++++ b/logrotate.c
+@@ -2906,7 +2906,13 @@ static int readState(const char *stateFilename)
+ static int lockState(const char *stateFilename, int skip_state_lock)
+ {
+     struct stat sb;
+-    int lockFd = open(stateFilename, O_RDWR | O_CLOEXEC);
++    int lockFd;
++
++    if (!strcmp(stateFilename, "/dev/null")) {
++        return 0;
++    }
++
++    lockFd = open(stateFilename, O_RDWR | O_CLOEXEC);
+     if (lockFd == -1) {
+         if (errno == ENOENT) {
+             message(MESS_DEBUG, "Creating stub state file: %s\n",
+-- 
+2.49.0
+
