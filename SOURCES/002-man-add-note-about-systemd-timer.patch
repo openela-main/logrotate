@@ -1,0 +1,30 @@
+From 1c1feebaddfd7c736cf08409f404fbeb6d499ede Mon Sep 17 00:00:00 2001
+From: Jan Macku <jamacku@redhat.com>
+Date: Fri, 12 Dec 2025 14:40:48 +0100
+Subject: [PATCH] man: add note about systemd timer
+
+Update description to make it more clear that logrotate uses systemd timers
+when using systemd.
+
+(cherry picked from commit 6293cffe9a5166cb8053d1f3814e8c47a78f9868)
+---
+ logrotate.8.in | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/logrotate.8.in b/logrotate.8.in
+index 4ff198e..4577d83 100644
+--- a/logrotate.8.in
++++ b/logrotate.8.in
+@@ -36,7 +36,8 @@ large numbers of log files.  It allows automatic rotation, compression,
+ removal, and mailing of log files.  Each log file may be handled daily,
+ weekly, monthly, or when it grows too large.
+ .P
+-Normally, \fBlogrotate\fR is run as a daily cron job.  It will not modify
++Normally, \fBlogrotate\fR is run as a daily cron job (or by
++\fIlogrotate.timer\fR when using \fBsystemd\fR(1)).  It will not modify
+ a log more than once in one day unless the criterion for that log is
+ based on the log's size and \fBlogrotate\fR is being run more than once
+ each day, or unless the \fB\-f\fR or \fB\-\-force\fR option is used.
+-- 
+2.52.0
+

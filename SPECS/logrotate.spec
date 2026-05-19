@@ -1,7 +1,7 @@
 Summary: Rotates, compresses, removes and mails system log files
 Name: logrotate
 Version: 3.22.0
-Release: 4%{?dist}
+Release: 5%{?dist}
 License: GPL-2.0-or-later
 URL: https://github.com/logrotate/logrotate
 Source0: https://github.com/logrotate/logrotate/releases/download/%{version}/logrotate-%{version}.tar.xz
@@ -15,6 +15,9 @@ Source3: rwtab
 
 # https://github.com/logrotate/logrotate/pull/633
 Patch001: 001-Avoid-opening-log-file-for-getting-SELinux-context.patch
+
+# https://github.com/logrotate/logrotate/pull/690
+Patch002: 002-man-add-note-about-systemd-timer.patch
 
 BuildRequires: acl
 BuildRequires: automake
@@ -118,6 +121,9 @@ fi
 %config(noreplace) %{_sysconfdir}/rwtab.d/logrotate
 
 %changelog
+* Thu Dec 18 2025 Jan Macku <jamacku@redhat.com> - 3.22.0-5
+- Fix man page to mention usage of systemd timers (RHEL-109481)
+
 * Tue Oct 29 2024 Troy Dawson <tdawson@redhat.com> - 3.22.0-4
 - Bump release for October 2024 mass rebuild:
   Resolves: RHEL-64018
